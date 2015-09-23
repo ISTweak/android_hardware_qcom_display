@@ -63,7 +63,6 @@ void FBUpdateLowRes::reset() {
 }
 
 bool FBUpdateLowRes::preRotateExtDisplay(hwc_context_t *ctx,
-                                            hwc_layer_1_t *layer,
                                             ovutils::Whf &info,
                                             hwc_rect_t& sourceCrop,
                                             ovutils::eMdpFlags& mdpFlags,
@@ -83,7 +82,6 @@ bool FBUpdateLowRes::preRotateExtDisplay(hwc_context_t *ctx,
             mRot = NULL;
             return false;
         }
-       ctx->mLayerRotMap[mDpy]->add(layer, mRot);
         info.format = (mRot)->getDstFormat();
         updateSource(orient, info, sourceCrop);
         rotFlags |= ovutils::ROT_PREROTATED;
@@ -168,8 +166,7 @@ bool FBUpdateLowRes::configure(hwc_context_t *ctx, hwc_display_contents_1 *list,
         ctx->dpyAttr[mDpy].mDstRect = displayFrame;
         setMdpFlags(layer, mdpFlags, 0, transform);
         // For External use rotator if there is a rotation value set
-        ret = preRotateExtDisplay(ctx, layer, info,
-                sourceCrop, mdpFlags, rotFlags);
+        ret = preRotateExtDisplay(ctx, info, sourceCrop, mdpFlags, rotFlags);
         if(!ret) {
             ALOGE("%s: preRotate for external Failed!", __FUNCTION__);
             return false;
