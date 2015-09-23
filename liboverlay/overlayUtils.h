@@ -215,8 +215,6 @@ struct Whf {
 
 enum { MAX_PATH_LEN = 256 };
 
-enum { DEFAULT_PLANE_ALPHA = 0xFF };
-
 /**
  * Rotator flags: not to be confused with orientation flags.
  * Usually, you want to open the rotator to make sure it is
@@ -334,36 +332,21 @@ enum eTransform {
     OVERLAY_TRANSFORM_INV = 0x80
 };
 
-enum eBlending {
-    OVERLAY_BLENDING_UNDEFINED = 0x0,
-    /* No blending */
-    OVERLAY_BLENDING_OPAQUE,
-    /* src.rgb + dst.rgb*(1-src_alpha) */
-    OVERLAY_BLENDING_PREMULT,
-    /* src.rgb * src_alpha + dst.rgb (1 - src_alpha) */
-    OVERLAY_BLENDING_COVERAGE,
-};
-
 // Used to consolidate pipe params
 struct PipeArgs {
     PipeArgs() : mdpFlags(OV_MDP_FLAGS_NONE),
         zorder(Z_SYSTEM_ALLOC),
         isFg(IS_FG_OFF),
-        rotFlags(ROT_FLAGS_NONE),
-        planeAlpha(DEFAULT_PLANE_ALPHA),
-        blending(OVERLAY_BLENDING_COVERAGE){
+        rotFlags(ROT_FLAGS_NONE){
     }
 
     PipeArgs(eMdpFlags f, Whf _whf,
-            eZorder z, eIsFg fg, eRotFlags r,
-            int pA, eBlending b) :
+            eZorder z, eIsFg fg, eRotFlags r) :
         mdpFlags(f),
         whf(_whf),
         zorder(z),
         isFg(fg),
-        rotFlags(r),
-        planeAlpha(pA),
-        blending(b){
+        rotFlags(r) {
     }
 
     eMdpFlags mdpFlags; // for mdp_overlay flags
@@ -371,8 +354,6 @@ struct PipeArgs {
     eZorder zorder; // stage number
     eIsFg isFg; // control alpha & transp
     eRotFlags rotFlags;
-    int planeAlpha;
-    eBlending blending;
 };
 
 // Cannot use HW_OVERLAY_MAGNIFICATION_LIMIT, since at the time

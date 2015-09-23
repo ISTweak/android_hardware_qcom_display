@@ -164,7 +164,6 @@ bool needsScaling(hwc_context_t* ctx, hwc_layer_1_t const* layer, const int& dpy
 bool isAlphaPresent(hwc_layer_1_t const* layer);
 bool setupBasePipe(hwc_context_t *ctx);
 int hwc_vsync_control(hwc_context_t* ctx, int dpy, int enable);
-int getBlending(int blending);
 
 //Helper function to dump logs
 void dumpsys_log(android::String8& buf, const char* fmt, ...);

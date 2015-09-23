@@ -172,16 +172,11 @@ bool FBUpdateLowRes::configure(hwc_context_t *ctx, hwc_display_contents_1 *list,
         orient = ovutils::OVERLAY_TRANSFORM_0;
         transform = 0;
 
-        //XXX: FB layer plane alpha is currently sent as zero from
-        //surfaceflinger
         ovutils::PipeArgs parg(mdpFlags,
                 info,
                 zOrder,
                 isFg,
-                static_cast<ovutils::eRotFlags>(rotFlags),
-                ovutils::DEFAULT_PLANE_ALPHA,
-                (ovutils::eBlending) getBlending(layer->blending));
-
+                ovutils::ROT_FLAGS_NONE);
         ret = true;
         if(configMdp(ctx->mOverlay, parg, orient, sourceCrop, displayFrame,
                     NULL, mDest) < 0) {
@@ -278,15 +273,11 @@ bool FBUpdateHighRes::configure(hwc_context_t *ctx,
 
         ovutils::eZorder zOrder = static_cast<ovutils::eZorder>(fbZorder);
 
-        //XXX: FB layer plane alpha is currently sent as zero from
-        //surfaceflinger
         ovutils::PipeArgs pargL(mdpFlagsL,
                 info,
                 zOrder,
                 ovutils::IS_FG_OFF,
-                ovutils::ROT_FLAGS_NONE,
-                ovutils::DEFAULT_PLANE_ALPHA,
-                (ovutils::eBlending) getBlending(layer->blending));
+                ovutils::ROT_FLAGS_NONE);
         ov.setSource(pargL, destL);
 
         ovutils::eMdpFlags mdpFlagsR = mdpFlagsL;
@@ -295,9 +286,7 @@ bool FBUpdateHighRes::configure(hwc_context_t *ctx,
                 info,
                 zOrder,
                 ovutils::IS_FG_OFF,
-                ovutils::ROT_FLAGS_NONE,
-                ovutils::DEFAULT_PLANE_ALPHA,
-                (ovutils::eBlending) getBlending(layer->blending));
+                ovutils::ROT_FLAGS_NONE);
         ov.setSource(pargR, destR);
 
         hwc_rect_t sourceCrop = integerizeSourceCrop(layer->sourceCropf);
