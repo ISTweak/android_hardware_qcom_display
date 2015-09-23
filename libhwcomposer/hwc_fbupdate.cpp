@@ -70,14 +70,11 @@ bool FBUpdateLowRes::preRotateExtDisplay(hwc_context_t *ctx,
 {
     int extOrient = getExtOrientation(ctx);
     ovutils::eTransform orient = static_cast<ovutils::eTransform >(extOrient);
-
     if(mDpy && (extOrient & HWC_TRANSFORM_ROT_90)) {
         mRot = ctx->mRotMgr->getNext();
         if(mRot == NULL) return false;
-        Whf origWhf(mAlignedFBWidth, mAlignedFBHeight,
-                    getMdpFormat(HAL_PIXEL_FORMAT_RGBA_8888));
         //Configure rotator for pre-rotation
-        if(configRotator(mRot, info, origWhf, mdpFlags, orient, 0) < 0) {
+        if(configRotator(mRot, info, mdpFlags, orient, 0) < 0) {
             ALOGE("%s: configRotator Failed!", __FUNCTION__);
             mRot = NULL;
             return false;
