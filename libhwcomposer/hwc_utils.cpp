@@ -1415,7 +1415,6 @@ int configureLowRes(hwc_context_t *ctx, hwc_layer_1_t *layer,
         //Configure rotator for pre-rotation
             ALOGE("%s: configRotator failed!", __FUNCTION__);
             ctx->mOverlay->clear(dpy);
-            ctx->mLayerRotMap[dpy]->clear();
             return -1;
         }
         ctx->mLayerRotMap[dpy]->add(layer, *rot);
@@ -1434,7 +1433,6 @@ int configureLowRes(hwc_context_t *ctx, hwc_layer_1_t *layer,
 
     if(configMdp(ctx->mOverlay, parg, orient, crop, dst, metadata, dest) < 0) {
         ALOGE("%s: commit failed for low res panel", __FUNCTION__);
-        ctx->mLayerRotMap[dpy]->clear();
         ctx->mLayerRotMap[dpy]->reset();
         return -1;
     }
@@ -1484,7 +1482,6 @@ int configureHighRes(hwc_context_t *ctx, hwc_layer_1_t *layer,
         //Configure rotator for pre-rotation
             ALOGE("%s: configRotator failed!", __FUNCTION__);
             ctx->mOverlay->clear(dpy);
-            ctx->mLayerRotMap[dpy]->clear();
             return -1;
         }
         ctx->mLayerRotMap[dpy]->add(layer, *rot);
@@ -1546,7 +1543,6 @@ int configureHighRes(hwc_context_t *ctx, hwc_layer_1_t *layer,
         if(configMdp(ctx->mOverlay, pargL, orient,
                 tmp_cropL, tmp_dstL, metadata, lDest) < 0) {
             ALOGE("%s: commit failed for left mixer config", __FUNCTION__);
-            ctx->mLayerRotMap[dpy]->clear();
             return -1;
         }
     }
@@ -1562,7 +1558,6 @@ int configureHighRes(hwc_context_t *ctx, hwc_layer_1_t *layer,
         if(configMdp(ctx->mOverlay, pargR, orient,
                 tmp_cropR, tmp_dstR, metadata, rDest) < 0) {
             ALOGE("%s: commit failed for right mixer config", __FUNCTION__);
-            ctx->mLayerRotMap[dpy]->clear();
             return -1;
         }
     }
@@ -1583,21 +1578,6 @@ void LayerRotMap::reset() {
         mRot[i] = 0;
     }
     mCount = 0;
-}
-
-void LayerRotMap::clear() {
-    for (uint32_t i = 0; i < mCount; i++) {
-        //mCount represents rotator objects for just this display.
-        //We could have popped mCount topmost objects from mRotMgr, but if each
-        //round has the same failure, typical of stability runs, it would lead
-        //to unnecessary memory allocation, deallocation each time. So we let
-        //the rotator objects be around, but just knock off the fences they
-        //hold. Ultimately the rotator objects will be GCed when not required.
-        //Also resetting fences is required if at least one rotation round has
-        //succeeded before. It'll be a NOP otherwise.
-        mRot[i]->resetReleaseFd();
-    }
-    reset();
 }
 
 void LayerRotMap::setReleaseFd(const int& fence) {
