@@ -162,7 +162,6 @@ void initContext(hwc_context_t *ctx)
     ctx->dpyAttr[HWC_DISPLAY_PRIMARY].connected = true;
 
     for (uint32_t i = 0; i < HWC_NUM_DISPLAY_TYPES; i++) {
-        ctx->mLayerRotMap[i] = new LayerRotMap();
         ctx->mAnimationState[i] = ANIMATION_STOPPED;
         ctx->mHwcDebug[i] = new HwcDebug(i);
         ctx->mPrevHwLayerCount[i] = 0;
@@ -228,10 +227,6 @@ void closeContext(hwc_context_t *ctx)
         if(ctx->mMDPComp[i]) {
             delete ctx->mMDPComp[i];
             ctx->mMDPComp[i] = NULL;
-        }
-        if(ctx->mLayerRotMap[i]) {
-            delete ctx->mLayerRotMap[i];
-            ctx->mLayerRotMap[i] = NULL;
         }
         if(ctx->mHwcDebug[i]) {
             delete ctx->mHwcDebug[i];
@@ -1001,26 +996,20 @@ void closeAcquireFds(hwc_display_contents_1_t* list) {
 }
 
 int hwc_sync(hwc_context_t *ctx, hwc_display_contents_1_t* list, int dpy,
-        int fd) {
+                                                        int fd) {
     int ret = 0;
+    struct mdp_buf_sync data;
     int acquireFd[MAX_NUM_APP_LAYERS];
     int count = 0;
     int releaseFd = -1;
     int fbFd = -1;
-    int rotFd = -1;
-    bool swapzero = false;
     int mdpVersion = qdutils::MDPVersion::getInstance().getMDPVersion();
     LayerProp *layerProp = ctx->layerProp[dpy];
-
-    struct mdp_buf_sync data;
     memset(&data, 0, sizeof(data));
-    //Until B-family supports sync for rotator
-    if(mdpVersion >= qdutils::MDSS_V5) {
-        data.flags = MDP_BUF_SYNC_FLAG_WAIT;
-    }
+    bool swapzero = false;
+    data.flags = MDP_BUF_SYNC_FLAG_WAIT;
     data.acq_fen_fd = acquireFd;
     data.rel_fen_fd = &releaseFd;
-
     char property[PROPERTY_VALUE_MAX];
     if(property_get("debug.egl.swapinterval", property, "1") > 0) {
         if(atoi(property) == 0)
@@ -1030,38 +1019,11 @@ int hwc_sync(hwc_context_t *ctx, hwc_display_contents_1_t* list, int dpy,
     if(dpy)
        isExtAnimating = ctx->listStats[dpy].isDisplayAnimating;
 
-#ifndef MDSS_TARGET
-    //Send acquireFenceFds to rotator
-    if(mdpVersion < qdutils::MDSS_V5) {
-        //A-family
-        int rotFd = ctx->mRotMgr->getRotDevFd();
-        struct msm_rotator_buf_sync rotData;
-
-        for(uint32_t i = 0; i < ctx->mLayerRotMap[dpy]->getCount(); i++) {
-            memset(&rotData, 0, sizeof(rotData));
-            int& acquireFenceFd =
-                ctx->mLayerRotMap[dpy]->getLayer(i)->acquireFenceFd;
-            rotData.acq_fen_fd = acquireFenceFd;
-            rotData.session_id = ctx->mLayerRotMap[dpy]->getRot(i)->getSessId();
-            ioctl(rotFd, MSM_ROTATOR_IOCTL_BUFFER_SYNC, &rotData);
-            close(acquireFenceFd);
-            //For MDP to wait on.
-            acquireFenceFd = dup(rotData.rel_fen_fd);
-            //A buffer is free to be used by producer as soon as its copied to
-            //rotator.
-            ctx->mLayerRotMap[dpy]->getLayer(i)->releaseFenceFd =
-                rotData.rel_fen_fd;
-        }
-    } else {
-        //TODO B-family
-    }
-#endif
-
-    //Accumulate acquireFenceFds for MDP
+    //Accumulate acquireFenceFds
     for(uint32_t i = 0; i < list->numHwLayers; i++) {
         if((list->hwLayers[i].compositionType == HWC_OVERLAY &&
                         (layerProp[i].mFlags & HWC_MDPCOMP)) &&
-                        list->hwLayers[i].acquireFenceFd >= 0) {
+                        list->hwLayers[i].acquireFenceFd != -1) {
             if(UNLIKELY(swapzero))
                 acquireFd[count++] = -1;
             else
@@ -1071,13 +1033,13 @@ int hwc_sync(hwc_context_t *ctx, hwc_display_contents_1_t* list, int dpy,
         if(list->hwLayers[i].compositionType == HWC_FRAMEBUFFER_TARGET) {
             if(UNLIKELY(swapzero))
                 acquireFd[count++] = -1;
-            else if(fd >= 0) {
+            else if(fd != -1) {
                 //set the acquireFD from fd - which is coming from c2d
                 acquireFd[count++] = fd;
                 // Buffer sync IOCTL should be async when using c2d fence is
                 // used
                 data.flags &= ~MDP_BUF_SYNC_FLAG_WAIT;
-            } else if(list->hwLayers[i].acquireFenceFd >= 0)
+            } else if(list->hwLayers[i].acquireFenceFd != -1)
                 acquireFd[count++] = list->hwLayers[i].acquireFenceFd;
         }
     }
@@ -1106,22 +1068,10 @@ int hwc_sync(hwc_context_t *ctx, hwc_display_contents_1_t* list, int dpy,
                 list->hwLayers[i].compositionType == HWC_BLIT ||
                 list->hwLayers[i].compositionType == HWC_FRAMEBUFFER_TARGET) {
             //Populate releaseFenceFds.
-            if(UNLIKELY(swapzero)) {
+            if(UNLIKELY(swapzero))
                 list->hwLayers[i].releaseFenceFd = -1;
-            } else if(isExtAnimating) {
-                // Release all the app layer fds immediately,
-                // if animation is in progress.
-                list->hwLayers[i].releaseFenceFd = -1;
-            } else if(list->hwLayers[i].releaseFenceFd < 0) {
-                //If rotator has not already populated this field.
-                if(list->hwLayers[i].compositionType == HWC_BLIT) {
-                    //For Blit, the app layers should be released when the Blit is
-                    //complete. This fd was passed from copybit->draw
-                    list->hwLayers[i].releaseFenceFd = dup(fd);
-                } else {
-                    list->hwLayers[i].releaseFenceFd = dup(releaseFd);
-                }
-            }
+            else
+                list->hwLayers[i].releaseFenceFd = dup(releaseFd);
         }
     }
 
@@ -1132,12 +1082,6 @@ int hwc_sync(hwc_context_t *ctx, hwc_display_contents_1_t* list, int dpy,
 
     if (ctx->mCopyBit[dpy])
         ctx->mCopyBit[dpy]->setReleaseFd(releaseFd);
-
-    //A-family
-    if(mdpVersion < qdutils::MDSS_V5) {
-        //Signals when MDP finishes reading rotator buffers.
-        ctx->mLayerRotMap[dpy]->setReleaseFd(releaseFd);
-    }
 
     // if external is animating, close the relaseFd
     if(isExtAnimating) {
@@ -1414,7 +1358,6 @@ int configureLowRes(hwc_context_t *ctx, hwc_layer_1_t *layer,
             ctx->mOverlay->clear(dpy);
             return -1;
         }
-        ctx->mLayerRotMap[dpy]->add(layer, *rot);
         whf.format = (*rot)->getDstFormat();
         updateSource(orient, whf, crop);
         rotFlags |= ovutils::ROT_PREROTATED;
@@ -1430,7 +1373,6 @@ int configureLowRes(hwc_context_t *ctx, hwc_layer_1_t *layer,
 
     if(configMdp(ctx->mOverlay, parg, orient, crop, dst, metadata, dest) < 0) {
         ALOGE("%s: commit failed for low res panel", __FUNCTION__);
-        ctx->mLayerRotMap[dpy]->reset();
         return -1;
     }
     return 0;
@@ -1479,7 +1421,6 @@ int configureHighRes(hwc_context_t *ctx, hwc_layer_1_t *layer,
             ctx->mOverlay->clear(dpy);
             return -1;
         }
-        ctx->mLayerRotMap[dpy]->add(layer, *rot);
         whf.format = (*rot)->getDstFormat();
         updateSource(orient, whf, crop);
         rotFlags |= ROT_PREROTATED;
@@ -1558,27 +1499,6 @@ int configureHighRes(hwc_context_t *ctx, hwc_layer_1_t *layer,
     }
 
     return 0;
-}
-
-void LayerRotMap::add(hwc_layer_1_t* layer, Rotator *rot) {
-    if(mCount >= MAX_SESS) return;
-    mLayer[mCount] = layer;
-    mRot[mCount] = rot;
-    mCount++;
-}
-
-void LayerRotMap::reset() {
-    for (int i = 0; i < MAX_SESS; i++) {
-        mLayer[i] = 0;
-        mRot[i] = 0;
-    }
-    mCount = 0;
-}
-
-void LayerRotMap::setReleaseFd(const int& fence) {
-    for(uint32_t i = 0; i < mCount; i++) {
-        mRot[i]->setReleaseFd(dup(fence));
-    }
 }
 
 int getSocIdFromSystem() {

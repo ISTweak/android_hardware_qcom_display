@@ -126,36 +126,6 @@ enum {
     HWC_COPYBIT = 0x00000002,
 };
 
-class LayerRotMap {
-public:
-    LayerRotMap() { reset(); }
-    enum { MAX_SESS = 3 };
-    void add(hwc_layer_1_t* layer, overlay::Rotator *rot);
-    void reset();
-    uint32_t getCount() const;
-    hwc_layer_1_t* getLayer(uint32_t index) const;
-    overlay::Rotator* getRot(uint32_t index) const;
-    void setReleaseFd(const int& fence);
-private:
-    hwc_layer_1_t* mLayer[MAX_SESS];
-    overlay::Rotator* mRot[MAX_SESS];
-    uint32_t mCount;
-};
-
-inline uint32_t LayerRotMap::getCount() const {
-    return mCount;
-}
-
-inline hwc_layer_1_t* LayerRotMap::getLayer(uint32_t index) const {
-    if(index >= mCount) return NULL;
-    return mLayer[index];
-}
-
-inline overlay::Rotator* LayerRotMap::getRot(uint32_t index) const {
-    if(index >= mCount) return NULL;
-    return mRot[index];
-}
-
 inline hwc_rect_t integerizeSourceCrop(const hwc_frect_t& cropF) {
     hwc_rect_t cropI = {0};
     cropI.left = int(ceilf(cropF.left));
@@ -435,7 +405,6 @@ struct hwc_context_t {
     bool mBufferMirrorMode;
     //used for enabling C2D Feature only for 8960 Non Pro Device
     int mSocId;
-    qhwc::LayerRotMap *mLayerRotMap[HWC_NUM_DISPLAY_TYPES];
     //previous Width & Height
     overlay::utils::Whf mPrevWHF[HWC_NUM_DISPLAY_TYPES][MAX_MDP_YUV_COUNT];
     // Panel reset flag will be set if BTA check fails
